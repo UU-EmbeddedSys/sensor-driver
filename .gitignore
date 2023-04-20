@@ -1,0 +1,8 @@
+# Not needed .vscode files
+.vscode/settings.json
+.vscode/.cortex-debug.registers.state.json
+
+# No build artifacts
+build*
+
+twister-out*
