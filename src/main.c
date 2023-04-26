@@ -62,45 +62,53 @@ static int sensor_node_write_reg(const struct device *i2c_dev, uint8_t *write_bu
 	return err;
 }
 
-double parse_double(uint8_t* buffer){
+uint64_t parse_double(uint8_t* buffer){
 	uint64_t temp = 0;
-	for(int i = 7; i >= 0; i--){
-		temp |= (uint64_t)buffer[i] << (i);
+	for(int i = 0; i < 8; i++){
+		//printf("Ax%02x ", buffer[i]);
+		temp |= (uint64_t)buffer[i] << (i*8);
+
+		for (int i = 0; i < 8; i++) {
+			printf("%02x", (uint8_t)(((uint8_t*)&temp)[i]));
+		}
+		printf("\n");
 	}
-	return (double)temp;
+	printf("\n");
+	return temp;
 }
 
 
 void i2c_communication(void *p1, void *p2, void *p3)
 {
+	uint64_t reconstructed_value = 0;
+	double true_value = 0;
+
 	uint8_t tx_buf;
 	uint8_t rx_buf[10];
 
 
 	uint8_t amount_to_read = 8;
 	while(true){
-		LOG_INF("writing");
-		
-		//sensor_node_read_reg(i2c_dev, data, 2, 0x9F);
 
-
-        tx_buf = 0x10;
+        tx_buf = 0x20;
         int ret = i2c_write_read(i2c_dev, SENSOR_NODE_ADDR, &tx_buf, 1, rx_buf, amount_to_read);
         if (ret) {
-            printk("Failed to read from BME680\n");
+            printf("Failed to read from BME680\n");
             return;
         }
-		for (int i = 7; i >= 0; i--) {
-			printk("0x%02x ", rx_buf[i]);
-		}
-		printk("\n");
-		double reconstructed_value = parse_double(rx_buf);
-		printk("Temperature: %lf\n", reconstructed_value);
-		printk("RECONSTRUCTED HEX:\n");
+		printf("--\n");
+		reconstructed_value = parse_double(rx_buf);
+		true_value = 0.5;
+		printf("\nTemperature: %lf %lf %d\n", (double)reconstructed_value, (double)true_value, sizeof(double));
+		printf("RECONSTRUCTED HEX:\n");
 		for (int i = 0; i < 8; i++) {
-			printk("0x%02x ", (uint8_t)(((uint8_t*)&reconstructed_value)[i]));
+			printf("0x%02x ", (uint8_t)(((uint8_t*)&reconstructed_value)[i]));
 		}
-		printk("\n");
+		printf("\n");
+		for (int i = 0; i < 8; i++) {
+			printf("0x%02x ", (uint8_t)(((uint8_t*)&true_value)[i]));
+		}
+		printf("\n");
 		k_sleep(K_MSEC(2000));
 	}
 }
