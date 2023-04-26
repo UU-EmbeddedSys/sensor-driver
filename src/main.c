@@ -62,6 +62,14 @@ static int sensor_node_write_reg(const struct device *i2c_dev, uint8_t *write_bu
 	return err;
 }
 
+double parse_double(uint8_t* buffer){
+	uint64_t temp = 0;
+	for(int i = 7; i >= 0; i--){
+		temp |= (uint64_t)buffer[i] << (i*8);
+	}
+	return (double)temp;
+}
+
 
 void i2c_communication(void *p1, void *p2, void *p3)
 {
@@ -69,14 +77,14 @@ void i2c_communication(void *p1, void *p2, void *p3)
 	uint8_t rx_buf[10];
 
 
-	uint8_t amount_to_read = 10;
+	uint8_t amount_to_read = 8;
 	while(true){
 		LOG_INF("writing");
 		
 		//sensor_node_read_reg(i2c_dev, data, 2, 0x9F);
 
 
-        tx_buf = 0x10;
+        tx_buf = 0x50;
         int ret = i2c_write_read(i2c_dev, SENSOR_NODE_ADDR, &tx_buf, 1, rx_buf, amount_to_read);
         if (ret) {
             printk("Failed to read from BME680\n");
@@ -86,6 +94,8 @@ void i2c_communication(void *p1, void *p2, void *p3)
 			printk("0x%02x ", rx_buf[i]);
 		}
 		printk("\n");
+
+		printf("Temperature: %f\n", parse_double(rx_buf));
 
 		k_sleep(K_MSEC(2000));
 	}
