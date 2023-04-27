@@ -1,0 +1,6 @@
+description: |
+    AAA
+
+compatible: "sensor_node"
+
+include: [sensor-device.yaml, i2c-device.yaml]
