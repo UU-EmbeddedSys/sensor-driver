@@ -4,7 +4,7 @@
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
-
+#include "i2c_registers.h"
 #include "sample.h"
 
 #define LED0_NODE DT_ALIAS(led0)
@@ -62,121 +62,53 @@ static int sensor_node_write_reg(const struct device *i2c_dev, uint8_t *write_bu
 	return err;
 }
 
-double parse_double(uint8_t* buffer){
-	LOG_HEXDUMP_INF(buffer, 8, "buffer");
+//for bme variables
+double read_double(const struct device *i2c_dev, uint8_t register_address){
+	uint8_t rx_buf[8];
+	sensor_node_read_reg(i2c_dev, rx_buf, 8, register_address);
+
 	double temp = 0;
 	uint64_t* temp_ptr = (uint64_t*)&temp;
-	for(int i = 0; i < 8; i++){
-		//printf("Ax%02x ", buffer[i]);
-		*temp_ptr = (*temp_ptr) | (uint64_t)buffer[i] << (i*8);
-		
+	for(int i = 0; i < 8; i++)
+		*temp_ptr = (*temp_ptr) | (uint64_t)rx_buf[i] << (i*8);
 
-		for (int i = 0; i < 8; i++) {
-			printf("%02x", (uint8_t)(((uint8_t*)&temp)[i]));
-		}
-		printf("\n");
-	}
-	printf("\n");
+	return temp;
+}
+
+//for bme variables
+float read_float(const struct device *i2c_dev, uint8_t register_address){
+	uint8_t rx_buf[4];
+	sensor_node_read_reg(i2c_dev, rx_buf, 4, register_address);
+
+	double temp = 0;
+	uint64_t* temp_ptr = (uint64_t*)&temp;
+	for(int i = 0; i < 4; i++)
+		*temp_ptr = (*temp_ptr) | (uint64_t)rx_buf[i] << (i*8);
+
 	return temp;
 }
 
 
-void i2c_communication_test_read(void *p1, void *p2, void *p3)
+
+void i2c_communication_test(void *p1, void *p2, void *p3)
 {
-	double reconstructed_value = 0;
-	double true_value = 0;
-
-	uint8_t tx_buf;
-	uint8_t rx_buf[10];
-
-
-	uint8_t amount_to_read = 8;
+	double received_bme680 = -1;
+	float received_distance = -1;
 	while(true){
+		received_bme680 = read_double(i2c_dev, BME680_READ_TEMP);
+		printf("Temperature: %f\n", received_bme680);
 
-        tx_buf = 0x10;
-        int ret = i2c_write_read(i2c_dev, SENSOR_NODE_ADDR, &tx_buf, 1, rx_buf, amount_to_read);
-        if (ret) {
-            printf("Failed to read from BME680\n");
-            return;
-        }
-		printf("--\n");
-		reconstructed_value = parse_double(rx_buf);
-		true_value = 0.5;
-		printf("\nTemperature: %lf %lf %d\n", reconstructed_value, (double)true_value, sizeof(double));
-		printf("RECONSTRUCTED HEX:\n");
-		for (int i = 0; i < 8; i++) {
-			printf("0x%02x ", (uint8_t)(((uint8_t*)&reconstructed_value)[i]));
-		}
-		printf("\nTRUE HEX:\n");
-		for (int i = 0; i < 8; i++) {
-			printf("0x%02x ", (uint8_t)(((uint8_t*)&true_value)[i]));
-		}
-		printf("\n");
-		k_sleep(K_MSEC(4000));
-	}
-}
+		received_bme680 = read_double(i2c_dev, BME680_READ_PRESSURE);
+		printf("Pressure: %f\n", received_bme680);
 
-void i2c_communication_test_write(void *p1, void *p2, void *p3)
-{
-	uint8_t data_sent = 0x69;
-	while(true){
-		LOG_INF("SENDING DATA\n");
-		sensor_node_write_reg(i2c_dev, &data_sent, 1, 0x99);
-		data_sent = 0x68;
-		sensor_node_write_reg(i2c_dev, &data_sent, 1, 0x95);		
-		k_sleep(K_MSEC(2000));
-	}
-}
+		received_bme680 = read_double(i2c_dev, BME680_READ_HUMIDITY);
+		printf("Humidity: %f\n", received_bme680);
 
-//slave only supports single byte write
-void i2c_communication_test_read_write(void *p1, void *p2, void *p3)
-{
-	uint64_t reconstructed_value = 0;
-	double true_value = 0;
+		received_distance = read_float(i2c_dev, ULTRASONIC_READ);
+		printf("Distance: %f\n", received_distance);
 
-	uint8_t tx_buf;
-	uint8_t rx_buf[10];
 
-	uint8_t data_sent = 0x69;
-
-	uint8_t amount_to_read = 8;
-	while(true){
-
-        tx_buf = 0x20;
-        int ret = i2c_write_read(i2c_dev, SENSOR_NODE_ADDR, &tx_buf, 1, rx_buf, amount_to_read);
-        if (ret) {
-            printf("Failed to read from BME680\n");
-            return;
-        }
-		printf("READ VALUE HEX:0x");
-		for (int i = 0; i < 8; i++) {
-			printf("%02x ", (uint8_t)(((uint8_t*)&rx_buf)[i]));
-		}
-		printf("\n");
-		
-		k_sleep(K_MSEC(4000));
-
-		sensor_node_write_reg(i2c_dev, &data_sent, 1, 0x99);
-		sensor_node_write_reg(i2c_dev, &data_sent, 1, 0x95);
-
-		k_sleep(K_MSEC(4000));
-
-		tx_buf = 0x20;
-        ret = i2c_write_read(i2c_dev, SENSOR_NODE_ADDR, &tx_buf, 1, rx_buf, amount_to_read);
-        if (ret) {
-            printf("Failed to read from BME680\n");
-            return;
-        }
-		printf("READ VALUE HEX:0x");
-		for (int i = 0; i < 8; i++) {
-			printf("%02x ", (uint8_t)(((uint8_t*)&rx_buf)[i]));
-		}
-		printf("\n");
-		
-		sensor_node_write_reg(i2c_dev, &data_sent, 1, 0x99);
-		k_sleep(K_MSEC(4000));
-
-	}
+		k_sleep(K_MSEC(500));	}
 }
 
 
@@ -194,7 +126,7 @@ void main(void)
 	}
 
 	k_tid_t i2c_thread_tid = k_thread_create(
-		&i2c_thread, i2c_stack, K_THREAD_STACK_SIZEOF(i2c_stack), i2c_communication_test_read, NULL,
+		&i2c_thread, i2c_stack, K_THREAD_STACK_SIZEOF(i2c_stack), i2c_communication_test, NULL,
 		NULL, NULL, MY_PRIORITY, K_INHERIT_PERMS, K_FOREVER);
 
 	k_thread_start(i2c_thread_tid);
