@@ -6,6 +6,9 @@
 #include <zephyr/drivers/gpio.h>
 #include "i2c_registers.h"
 #include "sample.h"
+#include <zephyr/drivers/sensor.h>
+
+
 
 #define LED0_NODE DT_ALIAS(led0)
 #define LED1_NODE DT_ALIAS(led1)
@@ -30,7 +33,7 @@ const struct device *const i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
 uint32_t i2c_cfg = I2C_SPEED_SET(I2C_SPEED_STANDARD) | I2C_MODE_CONTROLLER;
 
 static int sensor_node_read_reg(const struct device *i2c_dev, uint8_t *read_buf, uint8_t num_bytes,
-			       uint8_t start_address)
+				uint8_t start_address)
 {
 	int err = 0;
 	struct i2c_msg msg[2];
@@ -46,8 +49,9 @@ static int sensor_node_read_reg(const struct device *i2c_dev, uint8_t *read_buf,
 	return err;
 }
 
-static int sensor_node_write_reg(const struct device *i2c_dev, uint8_t *write_buf, uint8_t num_bytes,
-				uint8_t start_address){
+static int sensor_node_write_reg(const struct device *i2c_dev, uint8_t *write_buf,
+				 uint8_t num_bytes, uint8_t start_address)
+{
 	int err = 0;
 	struct i2c_msg msg[2];
 	// Write on the I2C bus the internal address of the sensor we want to read to
@@ -57,44 +61,46 @@ static int sensor_node_write_reg(const struct device *i2c_dev, uint8_t *write_bu
 	// Read the data from the bus
 	msg[1].buf = (uint8_t *)write_buf;
 	msg[1].len = num_bytes;
-	msg[1].flags = I2C_MSG_RESTART |I2C_MSG_WRITE | I2C_MSG_STOP;
+	msg[1].flags = I2C_MSG_RESTART | I2C_MSG_WRITE | I2C_MSG_STOP;
 	err = i2c_transfer(i2c_dev, msg, 2, SENSOR_NODE_ADDR);
 	return err;
 }
 
-//for bme variables
-double read_double(const struct device *i2c_dev, uint8_t register_address){
+// for bme variables
+double read_double(const struct device *i2c_dev, uint8_t register_address)
+{
 	uint8_t rx_buf[8];
 	sensor_node_read_reg(i2c_dev, rx_buf, 8, register_address);
 
 	double temp = 0;
-	uint64_t* temp_ptr = (uint64_t*)&temp;
-	for(int i = 0; i < 8; i++)
-		*temp_ptr = (*temp_ptr) | (uint64_t)rx_buf[i] << (i*8);
+	uint64_t *temp_ptr = (uint64_t *)&temp;
+	for (int i = 0; i < 8; i++) {
+		*temp_ptr = (*temp_ptr) | (uint64_t)rx_buf[i] << (i * 8);
+	}
 
 	return temp;
 }
 
-//for bme variables
-float read_float(const struct device *i2c_dev, uint8_t register_address){
+// for bme variables
+float read_float(const struct device *i2c_dev, uint8_t register_address)
+{
 	uint8_t rx_buf[4];
 	sensor_node_read_reg(i2c_dev, rx_buf, 4, register_address);
 
 	double temp = 0;
-	uint64_t* temp_ptr = (uint64_t*)&temp;
-	for(int i = 0; i < 4; i++)
-		*temp_ptr = (*temp_ptr) | (uint64_t)rx_buf[i] << (i*8);
+	uint64_t *temp_ptr = (uint64_t *)&temp;
+	for (int i = 0; i < 4; i++) {
+		*temp_ptr = (*temp_ptr) | (uint64_t)rx_buf[i] << (i * 8);
+	}
 
 	return temp;
 }
-
-
 
 void i2c_communication_test(void *p1, void *p2, void *p3)
 {
 	double received_bme680 = -1;
 	float received_distance = -1;
-	while(true){
+	while (true) {
 		received_bme680 = read_double(i2c_dev, BME680_READ_TEMP);
 		printf("Temperature: %f\n", received_bme680);
 
@@ -107,13 +113,15 @@ void i2c_communication_test(void *p1, void *p2, void *p3)
 		received_distance = read_float(i2c_dev, ULTRASONIC_READ);
 		printf("Distance: %f\n", received_distance);
 
-
-		k_sleep(K_MSEC(500));	}
+		k_sleep(K_MSEC(500));
+	}
 }
 
+const struct device *const sensor = DEVICE_DT_GET_ANY(sensor_node);
 
 void main(void)
 {
+
 	int err;
 	if (!device_is_ready(i2c_dev)) {
 		LOG_ERR("I2C: Device is not ready.\n");
@@ -125,9 +133,20 @@ void main(void)
 		LOG_ERR("i2c_configure\n");
 	}
 
+	if (sensor == NULL) {
+		LOG_ERR("error, no dev found\n");
+		return NULL;
+	}
+	// if (!device_is_ready(sensor)) {
+	// 	LOG_ERR("dev not ready\n");
+	// 	return NULL;
+	// }
+
+	LOG_INF("Found device \"%s\", getting sensor data\n", sensor->name);
+
 	k_tid_t i2c_thread_tid = k_thread_create(
-		&i2c_thread, i2c_stack, K_THREAD_STACK_SIZEOF(i2c_stack), i2c_communication_test, NULL,
-		NULL, NULL, MY_PRIORITY, K_INHERIT_PERMS, K_FOREVER);
+		&i2c_thread, i2c_stack, K_THREAD_STACK_SIZEOF(i2c_stack), i2c_communication_test,
+		NULL, NULL, NULL, MY_PRIORITY, K_INHERIT_PERMS, K_FOREVER);
 
 	k_thread_start(i2c_thread_tid);
 }

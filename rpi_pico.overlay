@@ -2,21 +2,37 @@
 
 / {
     aliases {
-               led0 = &myled0;
-               led1 = &myled1;
-               
+        led0 = &myled0;
+        led1 = &myled1;
+
     };
 
     leds {
-            compatible = "gpio-leds";
-            myled0: led_0 {
-                    gpios = <&gpio0 15 GPIO_ACTIVE_HIGH>;
-            };
-            myled1: led_1 {
-                    gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>;
-            };
+        compatible = "gpio-leds";
+        myled0: led_0 {
+            gpios = <&gpio0 15 GPIO_ACTIVE_HIGH>;
+        };
+        myled1: led_1 {
+            gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>;
+        };
     };
-    
+
+};
+
+&i2c0 {
+    clock-frequency = <I2C_BITRATE_STANDARD>;
+    status = "okay";
+    pinctrl-0 = <&i2c0_default>;
+    pinctrl-names = "default";
+    sensor_node: sensor_node@40 {
+            compatible = "sensor_node";
+            reg = <0x40>;
+    };
+    // bme680: bme680@77 {
+    //     compatible = "bosch,bme680";
+    //     reg = <0x77>;
+    // };
+
 };
 
 // TODO add pin to connect master through i2c 1
