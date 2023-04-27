@@ -53,11 +53,11 @@ static int sensor_node_write_reg(const struct device *i2c_dev, uint8_t *write_bu
 	// Write on the I2C bus the internal address of the sensor we want to read to
 	msg[0].buf = &start_address;
 	msg[0].len = 1;
-	msg[0].flags = I2C_MSG_WRITE;
+	msg[0].flags = I2C_MSG_WRITE | I2C_MSG_STOP;
 	// Read the data from the bus
 	msg[1].buf = (uint8_t *)write_buf;
 	msg[1].len = num_bytes;
-	msg[1].flags = I2C_MSG_WRITE | I2C_MSG_STOP;
+	msg[1].flags = I2C_MSG_RESTART |I2C_MSG_WRITE | I2C_MSG_STOP;
 	err = i2c_transfer(i2c_dev, msg, 2, SENSOR_NODE_ADDR);
 	return err;
 }
@@ -78,7 +78,7 @@ uint64_t parse_double(uint8_t* buffer){
 }
 
 
-void i2c_communication(void *p1, void *p2, void *p3)
+void i2c_communication_test_read(void *p1, void *p2, void *p3)
 {
 	uint64_t reconstructed_value = 0;
 	double true_value = 0;
@@ -109,9 +109,73 @@ void i2c_communication(void *p1, void *p2, void *p3)
 			printf("0x%02x ", (uint8_t)(((uint8_t*)&true_value)[i]));
 		}
 		printf("\n");
+		k_sleep(K_MSEC(4000));
+	}
+}
+
+void i2c_communication_test_write(void *p1, void *p2, void *p3)
+{
+	uint8_t data_sent = 0x69;
+	while(true){
+		LOG_INF("SENDING DATA\n");
+		sensor_node_write_reg(i2c_dev, &data_sent, 1, 0x99);
+		data_sent = 0x68;
+		sensor_node_write_reg(i2c_dev, &data_sent, 1, 0x95);		
 		k_sleep(K_MSEC(2000));
 	}
 }
+
+//slave only supports single byte write
+void i2c_communication_test_read_write(void *p1, void *p2, void *p3)
+{
+	uint64_t reconstructed_value = 0;
+	double true_value = 0;
+
+	uint8_t tx_buf;
+	uint8_t rx_buf[10];
+
+	uint8_t data_sent = 0x69;
+
+	uint8_t amount_to_read = 8;
+	while(true){
+
+        tx_buf = 0x20;
+        int ret = i2c_write_read(i2c_dev, SENSOR_NODE_ADDR, &tx_buf, 1, rx_buf, amount_to_read);
+        if (ret) {
+            printf("Failed to read from BME680\n");
+            return;
+        }
+		printf("READ VALUE HEX:0x");
+		for (int i = 0; i < 8; i++) {
+			printf("%02x ", (uint8_t)(((uint8_t*)&rx_buf)[i]));
+		}
+		printf("\n");
+		
+		k_sleep(K_MSEC(4000));
+
+		sensor_node_write_reg(i2c_dev, &data_sent, 1, 0x99);
+		sensor_node_write_reg(i2c_dev, &data_sent, 1, 0x95);
+
+		k_sleep(K_MSEC(4000));
+
+		tx_buf = 0x20;
+        ret = i2c_write_read(i2c_dev, SENSOR_NODE_ADDR, &tx_buf, 1, rx_buf, amount_to_read);
+        if (ret) {
+            printf("Failed to read from BME680\n");
+            return;
+        }
+		printf("READ VALUE HEX:0x");
+		for (int i = 0; i < 8; i++) {
+			printf("%02x ", (uint8_t)(((uint8_t*)&rx_buf)[i]));
+		}
+		printf("\n");
+		
+		sensor_node_write_reg(i2c_dev, &data_sent, 1, 0x99);
+		k_sleep(K_MSEC(4000));
+
+	}
+}
+
 
 void main(void)
 {
@@ -127,7 +191,7 @@ void main(void)
 	}
 
 	k_tid_t i2c_thread_tid = k_thread_create(
-		&i2c_thread, i2c_stack, K_THREAD_STACK_SIZEOF(i2c_stack), i2c_communication, NULL,
+		&i2c_thread, i2c_stack, K_THREAD_STACK_SIZEOF(i2c_stack), i2c_communication_test_read_write, NULL,
 		NULL, NULL, MY_PRIORITY, K_INHERIT_PERMS, K_FOREVER);
 
 	k_thread_start(i2c_thread_tid);
