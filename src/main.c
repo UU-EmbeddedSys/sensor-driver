@@ -62,11 +62,14 @@ static int sensor_node_write_reg(const struct device *i2c_dev, uint8_t *write_bu
 	return err;
 }
 
-uint64_t parse_double(uint8_t* buffer){
-	uint64_t temp = 0;
+double parse_double(uint8_t* buffer){
+	LOG_HEXDUMP_INF(buffer, 8, "buffer");
+	double temp = 0;
+	uint64_t* temp_ptr = (uint64_t*)&temp;
 	for(int i = 0; i < 8; i++){
 		//printf("Ax%02x ", buffer[i]);
-		temp |= (uint64_t)buffer[i] << (i*8);
+		*temp_ptr = (*temp_ptr) | (uint64_t)buffer[i] << (i*8);
+		
 
 		for (int i = 0; i < 8; i++) {
 			printf("%02x", (uint8_t)(((uint8_t*)&temp)[i]));
@@ -80,7 +83,7 @@ uint64_t parse_double(uint8_t* buffer){
 
 void i2c_communication_test_read(void *p1, void *p2, void *p3)
 {
-	uint64_t reconstructed_value = 0;
+	double reconstructed_value = 0;
 	double true_value = 0;
 
 	uint8_t tx_buf;
@@ -90,7 +93,7 @@ void i2c_communication_test_read(void *p1, void *p2, void *p3)
 	uint8_t amount_to_read = 8;
 	while(true){
 
-        tx_buf = 0x20;
+        tx_buf = 0x10;
         int ret = i2c_write_read(i2c_dev, SENSOR_NODE_ADDR, &tx_buf, 1, rx_buf, amount_to_read);
         if (ret) {
             printf("Failed to read from BME680\n");
@@ -99,12 +102,12 @@ void i2c_communication_test_read(void *p1, void *p2, void *p3)
 		printf("--\n");
 		reconstructed_value = parse_double(rx_buf);
 		true_value = 0.5;
-		printf("\nTemperature: %lf %lf %d\n", (double)reconstructed_value, (double)true_value, sizeof(double));
+		printf("\nTemperature: %lf %lf %d\n", reconstructed_value, (double)true_value, sizeof(double));
 		printf("RECONSTRUCTED HEX:\n");
 		for (int i = 0; i < 8; i++) {
 			printf("0x%02x ", (uint8_t)(((uint8_t*)&reconstructed_value)[i]));
 		}
-		printf("\n");
+		printf("\nTRUE HEX:\n");
 		for (int i = 0; i < 8; i++) {
 			printf("0x%02x ", (uint8_t)(((uint8_t*)&true_value)[i]));
 		}
@@ -191,7 +194,7 @@ void main(void)
 	}
 
 	k_tid_t i2c_thread_tid = k_thread_create(
-		&i2c_thread, i2c_stack, K_THREAD_STACK_SIZEOF(i2c_stack), i2c_communication_test_read_write, NULL,
+		&i2c_thread, i2c_stack, K_THREAD_STACK_SIZEOF(i2c_stack), i2c_communication_test_read, NULL,
 		NULL, NULL, MY_PRIORITY, K_INHERIT_PERMS, K_FOREVER);
 
 	k_thread_start(i2c_thread_tid);
