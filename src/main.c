@@ -29,6 +29,8 @@ struct gpio_dt_spec led1 = GPIO_DT_SPEC_GET(LED1_NODE, gpios);
 const struct device *const i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
 uint32_t i2c_cfg = I2C_SPEED_SET(I2C_SPEED_STANDARD) | I2C_MODE_CONTROLLER;
 
+
+//COPY THIS FUNCTIONS TO THE DRIVER
 static int sensor_node_read_reg(const struct device *i2c_dev, uint8_t *read_buf, uint8_t num_bytes,
 			       uint8_t start_address)
 {
@@ -45,7 +47,6 @@ static int sensor_node_read_reg(const struct device *i2c_dev, uint8_t *read_buf,
 	err = i2c_transfer(i2c_dev, msg, 2, SENSOR_NODE_ADDR);
 	return err;
 }
-
 //for bme variables
 double read_double(const struct device *i2c_dev, uint8_t register_address){
 	uint8_t rx_buf[8];
@@ -75,8 +76,6 @@ float read_float(const struct device *i2c_dev, uint8_t register_address){
 uint8_t read_byte(const struct device *i2c_dev, uint8_t register_address){
 	uint8_t rx_buf;
 	sensor_node_read_reg(i2c_dev, &rx_buf, 1, register_address);
-
-	
 	return rx_buf;
 }
 
@@ -84,6 +83,11 @@ uint8_t write_configuration(const struct device *i2c_dev, uint8_t configuration_
 	read_byte(i2c_dev, CLEAR_I2C);
 	return i2c_reg_write_byte(i2c_dev, SENSOR_NODE_ADDR, register_address, configuration_value);
 }
+
+//END OF COPY THIS FUNCTIONS TO THE DRIVER
+
+
+
 
 void i2c_communication_test(void *p1, void *p2, void *p3)
 {
