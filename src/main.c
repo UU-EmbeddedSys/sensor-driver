@@ -46,22 +46,6 @@ static int sensor_node_read_reg(const struct device *i2c_dev, uint8_t *read_buf,
 	return err;
 }
 
-static int sensor_node_write_reg(const struct device *i2c_dev, uint8_t *write_buf, uint8_t num_bytes,
-				uint8_t start_address){
-	int err = 0;
-	struct i2c_msg msg[2];
-	// Write on the I2C bus the internal address of the sensor we want to read to
-	msg[0].buf = &start_address;
-	msg[0].len = 1;
-	msg[0].flags = I2C_MSG_WRITE | I2C_MSG_STOP;
-	// Read the data from the bus
-	msg[1].buf = (uint8_t *)write_buf;
-	msg[1].len = num_bytes;
-	msg[1].flags = I2C_MSG_RESTART |I2C_MSG_WRITE | I2C_MSG_STOP;
-	err = i2c_transfer(i2c_dev, msg, 2, SENSOR_NODE_ADDR);
-	return err;
-}
-
 //for bme variables
 double read_double(const struct device *i2c_dev, uint8_t register_address){
 	uint8_t rx_buf[8];
@@ -80,35 +64,73 @@ float read_float(const struct device *i2c_dev, uint8_t register_address){
 	uint8_t rx_buf[4];
 	sensor_node_read_reg(i2c_dev, rx_buf, 4, register_address);
 
-	double temp = 0;
-	uint64_t* temp_ptr = (uint64_t*)&temp;
+	float temp = 0;
+	uint32_t* temp_ptr = (uint32_t*)&temp;
 	for(int i = 0; i < 4; i++)
-		*temp_ptr = (*temp_ptr) | (uint64_t)rx_buf[i] << (i*8);
+		*temp_ptr = (*temp_ptr) | (uint32_t)rx_buf[i] << (i*8);
 
 	return temp;
 }
 
+uint8_t read_byte(const struct device *i2c_dev, uint8_t register_address){
+	uint8_t rx_buf;
+	sensor_node_read_reg(i2c_dev, &rx_buf, 1, register_address);
 
+	
+	return rx_buf;
+}
+
+uint8_t write_configuration(const struct device *i2c_dev, uint8_t configuration_value, uint8_t register_address){
+	read_byte(i2c_dev, CLEAR_I2C);
+	return i2c_reg_write_byte(i2c_dev, SENSOR_NODE_ADDR, register_address, configuration_value);
+}
 
 void i2c_communication_test(void *p1, void *p2, void *p3)
 {
 	double received_bme680 = -1;
 	float received_distance = -1;
+	uint8_t received_byte = -1;
+	uint8_t sent_byte = 0xFF;
+	
 	while(true){
-		received_bme680 = read_double(i2c_dev, BME680_READ_TEMP);
-		printf("Temperature: %f\n", received_bme680);
+		
+		if (false){
+			received_bme680 = read_double(i2c_dev, BME680_READ_TEMP);
+			printf("Temperature: %f\n", received_bme680);
 
-		received_bme680 = read_double(i2c_dev, BME680_READ_PRESSURE);
-		printf("Pressure: %f\n", received_bme680);
+			received_bme680 = read_double(i2c_dev, BME680_READ_PRESSURE);
+			printf("Pressure: %f\n", received_bme680);
 
-		received_bme680 = read_double(i2c_dev, BME680_READ_HUMIDITY);
-		printf("Humidity: %f\n", received_bme680);
+			received_bme680 = read_double(i2c_dev, BME680_READ_HUMIDITY);
+			printf("Humidity: %f\n", received_bme680);
 
-		received_distance = read_float(i2c_dev, ULTRASONIC_READ);
-		printf("Distance: %f\n", received_distance);
+			received_distance = read_float(i2c_dev, ULTRASONIC_READ);
+			printf("Distance: %f\n", received_distance);
 
 
-		k_sleep(K_MSEC(500));	}
+			received_distance = read_float(i2c_dev, ADXL345_READ_X);
+			printf("X: %f\n", received_distance);
+
+			received_distance = read_float(i2c_dev, ADXL345_READ_Y);
+			printf("Y: %f\n", received_distance);
+
+			received_distance = read_float(i2c_dev, ADXL345_READ_Z);
+			printf("Z: %f\n", received_distance);
+		}
+
+		if(true){
+			sent_byte = read_byte(i2c_dev, BME680_CONFIG_TEMP);
+			printf("BEFORE_CONFIG Temperature config: %d\n", sent_byte);
+			write_configuration(i2c_dev, 0x03, BME680_CONFIG_TEMP);
+			sent_byte = read_byte(i2c_dev, BME680_CONFIG_TEMP);
+			printf("AFTER CONFIG Temperature config: %d\n", sent_byte);
+		}
+
+		
+		
+		
+
+		k_sleep(K_MSEC(2000));	}
 }
 
 

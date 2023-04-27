@@ -6,6 +6,14 @@
 #define TEST_READ_DOUBLE 0x10
 #define TEST_READ_SCALE 0x20
 
+//ADXL345
+//BME680
+//read: 3x4 bytes (float) xyz
+#define ADXL345_READ_X 0xA0 //until 0x53
+#define ADXL345_READ_Y 0xB0 //until 0x63
+#define ADXL345_READ_Z 0xC0 //until 0x73
+
+
 
 //BME680
 //read: 3x8 bytes (double) temperature, pressure, humidity
@@ -23,5 +31,7 @@
 //configuration 1x1byte (uint8_t) polling rate (not implemented)
 #define ULTRASONIC_READ 0x80 //until 0x83
 #define ULTRASONIC_POLLING 0x8A 
+
+#define CLEAR_I2C 0xFF
 
 #endif
