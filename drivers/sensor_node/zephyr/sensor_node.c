@@ -91,13 +91,13 @@ uint8_t write_configuration(const struct device *i2c_dev, uint8_t configuration_
 
 static void print_sensor_data(const struct sensor_data *data)
 {
-	LOG_DBG("Distance: %.2f", data->distance);
-	LOG_DBG("X Acceleration: %.2f", data->x_acceleration);
-	LOG_DBG("Y Acceleration: %.2f", data->y_acceleration);
-	LOG_DBG("Z Acceleration: %.2f", data->z_acceleration);
-	LOG_DBG("Temperature: %.2f", data->temperature);
-	LOG_DBG("Humidity: %.2f", data->humidity);
-	LOG_DBG("Pressure: %.2f", data->pressure);
+	LOG_INF("Distance: %.2f", data->distance);
+	LOG_INF("X Acceleration: %.2f", data->x_acceleration);
+	LOG_INF("Y Acceleration: %.2f", data->y_acceleration);
+	LOG_INF("Z Acceleration: %.2f", data->z_acceleration);
+	LOG_INF("Temperature: %.2f", data->temperature);
+	LOG_INF("Humidity: %.2f", data->humidity);
+	LOG_INF("Pressure: %.2f", data->pressure);
 }
 
 static int sensor_node_init(const struct device *dev)
