@@ -89,14 +89,15 @@ uint8_t write_configuration(const struct device *i2c_dev, uint8_t configuration_
 	return i2c_reg_write_byte(i2c_dev, SENSOR_NODE_ADDR, register_address, configuration_value);
 }
 
-static void print_sensor_data(const struct sensor_data *data) {
-    LOG_INF("Distance: %.2f", data->distance);
-    LOG_INF("X Acceleration: %.2f", data->x_acceleration);
-    LOG_INF("Y Acceleration: %.2f", data->y_acceleration);
-    LOG_INF("Z Acceleration: %.2f", data->z_acceleration);
-    LOG_INF("Temperature: %.2f", data->temperature);
-    LOG_INF("Humidity: %.2f", data->humidity);
-    LOG_INF("Pressure: %.2f", data->pressure);
+static void print_sensor_data(const struct sensor_data *data)
+{
+	LOG_DBG("Distance: %.2f", data->distance);
+	LOG_DBG("X Acceleration: %.2f", data->x_acceleration);
+	LOG_DBG("Y Acceleration: %.2f", data->y_acceleration);
+	LOG_DBG("Z Acceleration: %.2f", data->z_acceleration);
+	LOG_DBG("Temperature: %.2f", data->temperature);
+	LOG_DBG("Humidity: %.2f", data->humidity);
+	LOG_DBG("Pressure: %.2f", data->pressure);
 }
 
 static int sensor_node_init(const struct device *dev)
@@ -110,6 +111,41 @@ static int sensor_node_init(const struct device *dev)
 	}
 	LOG_INF("SENSOR INITIALIZED");
 	return 0;
+}
+
+static int sensor_node_attr_set(const struct device *dev, enum sensor_channel chan,
+				enum sensor_attribute attr, const struct sensor_value *val)
+{
+	int err = 0;
+	struct sensor_data *data = dev->data;
+	const struct sensor_config *config = dev->config;
+	const struct device *i2c_dev = config->i2c.bus;
+	LOG_WRN("ATTR SET");
+	switch (attr) {
+	case SENSOR_ATTR_OVERSAMPLING:
+		// BME
+		switch (chan) {
+		case SENSOR_CHAN_AMBIENT_TEMP:
+			err = write_configuration(i2c_dev, (uint8_t)val->val1, BME680_CONFIG_TEMP);
+			break;
+		case SENSOR_CHAN_HUMIDITY:
+			err = write_configuration(i2c_dev, (uint8_t)val->val1, BME680_CONFIG_HUMIDITY);
+			break;
+		case SENSOR_CHAN_PRESS:
+			err = write_configuration(i2c_dev, (uint8_t)val->val1, BME680_CONFIG_PRESSURE);
+			break;
+		default:
+			break;
+		}
+		break;
+	case SENSOR_ATTR_SAMPLING_FREQUENCY:
+		// ADXL
+		err = write_configuration(i2c_dev, (uint8_t)val->val1, ADXL345_SAMPL_FREQ); // FIXME implement on the sensor too
+		break;
+	default:
+		break;
+	}
+	return err;
 }
 
 static int sensor_node_sample_fetch(const struct device *dev, enum sensor_channel chan)
@@ -138,12 +174,11 @@ static int sensor_node_sample_fetch(const struct device *dev, enum sensor_channe
 // }
 
 static int sensore_node_channel_get(const struct device *dev, enum sensor_channel chan,
-			       struct sensor_value *val)
+				    struct sensor_value *val)
 {
-	struct sensor_data* data = dev->data;
+	struct sensor_data *data = dev->data;
 
-	switch (chan)
-	{
+	switch (chan) {
 	case SENSOR_CHAN_AMBIENT_TEMP:
 		/* code */
 		sensor_value_from_double(val, data->temperature);
@@ -171,26 +206,22 @@ static int sensore_node_channel_get(const struct device *dev, enum sensor_channe
 static const struct sensor_driver_api sensor_node_api_funcs = {
 	.sample_fetch = sensor_node_sample_fetch,
 	.channel_get = sensore_node_channel_get,
+	.attr_set = sensor_node_attr_set,
 };
 
 #define SENSOR_CONFIG_I2C(inst)                                                                    \
 	{                                                                                          \
-		.i2c =  I2C_DT_SPEC_INST_GET(inst), \
-		.read_reg = sensor_node_read_reg, \
-		.write_reg = sensor_node_write_reg, \
-		.bus_check = sensor_node_bus_check, \
+		.i2c = I2C_DT_SPEC_INST_GET(inst),                                                 \
+		.read_reg = sensor_node_read_reg,                                                  \
+		.write_reg = sensor_node_write_reg,                                                \
+		.bus_check = sensor_node_bus_check,                                                \
 	};
 
 #define SENSOR_NODE_DEFINE(inst)                                                                   \
 	static struct sensor_data sensor_data_##inst;                                              \
-	static const struct sensor_config sensor_config_##inst = SENSOR_CONFIG_I2C(inst) \
-	SENSOR_DEVICE_DT_INST_DEFINE(inst, \
-								sensor_node_init,  \
-	 							NULL,\
-	  							&sensor_data_##inst, \
-								&sensor_config_##inst, \
-				 				POST_KERNEL, \
-				 				CONFIG_SENSOR_INIT_PRIORITY, \
-				 				&sensor_node_api_funcs); 
+	static const struct sensor_config sensor_config_##inst = SENSOR_CONFIG_I2C(inst)           \
+		SENSOR_DEVICE_DT_INST_DEFINE(inst, sensor_node_init, NULL, &sensor_data_##inst,    \
+					     &sensor_config_##inst, POST_KERNEL,                   \
+					     CONFIG_SENSOR_INIT_PRIORITY, &sensor_node_api_funcs);
 
 DT_INST_FOREACH_STATUS_OKAY(SENSOR_NODE_DEFINE)

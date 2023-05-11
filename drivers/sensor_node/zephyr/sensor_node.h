@@ -13,7 +13,7 @@
 #define ADXL345_READ_Y 0xB0 //until 0x63
 #define ADXL345_READ_Z 0xC0 //until 0x73
 
-
+#define ADXL345_SAMPL_FREQ 0xD0
 
 //BME680
 //read: 3x8 bytes (double) temperature, pressure, humidity
