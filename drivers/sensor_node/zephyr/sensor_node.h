@@ -2,6 +2,19 @@
 
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/i2c.h>
+#include <zephyr/drivers/gpio.h>
+
+typedef enum int_source_t
+{
+	NONE,
+	HUMIDITY,
+	TEMPERATURE,
+	PRESSURE,
+	DISTANCE,
+	ACCELERATOR
+} int_source_t;
+
+#define SENSOR_NODE_ISR_SRC 0x05 // TODO add in sensor node
 
 #define TEST_READ_DOUBLE 0x10
 #define TEST_READ_SCALE 0x20
@@ -46,6 +59,7 @@ typedef int (*i2c_bus_check)(const struct device *dev);
 
 struct sensor_config {
 	struct i2c_dt_spec i2c;
+	struct gpio_dt_spec int_gpio; // set the trigger gpio
 	read_register read_reg;
 	write_register write_reg;
 	i2c_bus_check bus_check;
@@ -59,6 +73,11 @@ struct sensor_data {
 	double temperature;
 	double humidity;
 	double pressure;
+	struct gpio_callback gpio_cb; // store the callback of the interrupt
+	const struct device* dev;
+	K_KERNEL_STACK_MEMBER(thread_stack, 2048);
+	struct k_sem gpio_sem;
+	struct k_thread thread;
 };
 
 #endif

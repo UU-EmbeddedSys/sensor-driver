@@ -9,8 +9,8 @@
 #include <zephyr/shell/shell.h>
 #include <zephyr/shell/shell_uart.h>
 
-#define LED0_NODE DT_ALIAS(led0)
-#define LED1_NODE DT_ALIAS(led1)
+// #define LED0_NODE DT_ALIAS(led0)
+// #define LED1_NODE DT_ALIAS(led1)
 
 #define MY_STACK_SIZE 5000
 #define MY_PRIORITY   5
@@ -25,17 +25,19 @@ K_THREAD_STACK_DEFINE(i2c_stack, MY_STACK_SIZE);
 
 struct k_thread i2c_thread;
 
-struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
-struct gpio_dt_spec led1 = GPIO_DT_SPEC_GET(LED1_NODE, gpios);
 
 const struct device *const i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
 uint32_t i2c_cfg = I2C_SPEED_SET(I2C_SPEED_STANDARD) | I2C_MODE_CONTROLLER;
 
 const struct device *const sensor = DEVICE_DT_GET_ANY(sensor_node);
 
-// SHELL_UART_DEFINE(driver_transport, CONFIG_SHELL_BACKEND_SERIAL_TX_RING_BUFFER_SIZE, CONFIG_SHELL_BACKEND_SERIAL_RX_RING_BUFFER_SIZE);
-// SHELL_DEFINE(driver_shell, "sensor-driver:~$ ", &driver_transport, 10, 0, SHELL_FLAG_OLF_CRLF);
-// extern const struct shell* shell_uart;
+static struct sensor_trigger trig;
+
+static void trigger_handler(const struct device *dev,
+			    const struct sensor_trigger *trig)
+{
+	LOG_INF("HANDLING TRIGGER");
+}
 
 /**
  * @brief Set sensor configurations
@@ -57,6 +59,12 @@ void init_sensor(const struct device* sensor)
 	oversampling.val1 = 0b101;
 	oversampling.val2 = 0;
 	sensor_attr_set(sensor, SENSOR_CHAN_PRESS, SENSOR_ATTR_OVERSAMPLING, &oversampling);
+
+	trig.type = SENSOR_TRIG_THRESHOLD;
+
+	trig.chan = SENSOR_CHAN_AMBIENT_TEMP;
+
+	sensor_trigger_set(sensor, &trig, trigger_handler);
 }
 
 void i2c_communication_test(void *p1, void *p2, void *p3)
@@ -73,7 +81,6 @@ void i2c_communication_test(void *p1, void *p2, void *p3)
 		sensor_channel_get(sensor, SENSOR_CHAN_HUMIDITY, &humidity);
 		sensor_channel_get(sensor, SENSOR_CHAN_DISTANCE, &distance);
 		sensor_channel_get(sensor, SENSOR_CHAN_ACCEL_XYZ, accel);
-		init_sensor(sensor);
 
 
 		LOG_INF("Temperature: %d.%03d °C", temperature.val1, temperature.val2);
@@ -135,8 +142,9 @@ void main(void)
 
 	init_sensor(sensor);
 
-	shell_execute_cmd(shell_backend_uart_get_ptr(), "log disable");
-	shell_execute_cmd(shell_backend_uart_get_ptr(), "driver calibrate");
+	// shell_execute_cmd(shell_backend_uart_get_ptr(), "log disable");
+	// shell_execute_cmd(shell_backend_uart_get_ptr(), "clear");
+	// shell_execute_cmd(shell_backend_uart_get_ptr(), "driver calibrate");
 
 	k_tid_t i2c_thread_tid = k_thread_create(
 		&i2c_thread, i2c_stack, K_THREAD_STACK_SIZEOF(i2c_stack), i2c_communication_test,
