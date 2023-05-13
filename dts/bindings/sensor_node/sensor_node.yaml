@@ -4,3 +4,9 @@ description: |
 compatible: "sensor_node"
 
 include: [sensor-device.yaml, i2c-device.yaml]
+
+properties:
+    gpios:
+        type: phandle-array
+        description: |
+            Interrupt pin, default is 20.

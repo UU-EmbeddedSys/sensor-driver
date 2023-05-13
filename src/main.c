@@ -4,8 +4,10 @@
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
-#include "sample.h"
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/shell/shell.h>
+#include <zephyr/shell/shell_uart.h>
 
 #define LED0_NODE DT_ALIAS(led0)
 #define LED1_NODE DT_ALIAS(led1)
@@ -30,6 +32,10 @@ const struct device *const i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
 uint32_t i2c_cfg = I2C_SPEED_SET(I2C_SPEED_STANDARD) | I2C_MODE_CONTROLLER;
 
 const struct device *const sensor = DEVICE_DT_GET_ANY(sensor_node);
+
+// SHELL_UART_DEFINE(driver_transport, CONFIG_SHELL_BACKEND_SERIAL_TX_RING_BUFFER_SIZE, CONFIG_SHELL_BACKEND_SERIAL_RX_RING_BUFFER_SIZE);
+// SHELL_DEFINE(driver_shell, "sensor-driver:~$ ", &driver_transport, 10, 0, SHELL_FLAG_OLF_CRLF);
+// extern const struct shell* shell_uart;
 
 /**
  * @brief Set sensor configurations
@@ -67,6 +73,7 @@ void i2c_communication_test(void *p1, void *p2, void *p3)
 		sensor_channel_get(sensor, SENSOR_CHAN_HUMIDITY, &humidity);
 		sensor_channel_get(sensor, SENSOR_CHAN_DISTANCE, &distance);
 		sensor_channel_get(sensor, SENSOR_CHAN_ACCEL_XYZ, accel);
+		init_sensor(sensor);
 
 
 		LOG_INF("Temperature: %d.%03d °C", temperature.val1, temperature.val2);
@@ -81,6 +88,28 @@ void i2c_communication_test(void *p1, void *p2, void *p3)
 		
 		k_sleep(K_MSEC(2000));
 	}
+}
+
+static int cmd_calibrate_distance_sensor(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+	shell_print(sh, "*** Position the distance sensor ***");
+	shell_print(sh, "Press enter when is in the correct postion.");
+	struct sensor_value distance;
+	char data;
+	int cnt;
+	while(data != '\n' && data != 0x0D)
+	{
+		sh->iface->api->read(sh->iface, &data, 1, &cnt);
+		k_sleep(K_MSEC(500));
+		// shell_print(sh, "%c 0x%02X", data, data);
+	}
+	// FIXME set the calibration value to the sensor node
+	sensor_sample_fetch_chan(sensor, SENSOR_CHAN_DISTANCE);
+	sensor_channel_get(sensor, SENSOR_CHAN_DISTANCE, &distance);
+	shell_print(sh, "sensor calibrated! Threshold distance: %f", sensor_value_to_double(&distance));
+	return 0;
 }
 
 void main(void)
@@ -106,9 +135,19 @@ void main(void)
 
 	init_sensor(sensor);
 
+	shell_execute_cmd(shell_backend_uart_get_ptr(), "log disable");
+	shell_execute_cmd(shell_backend_uart_get_ptr(), "driver calibrate");
+
 	k_tid_t i2c_thread_tid = k_thread_create(
 		&i2c_thread, i2c_stack, K_THREAD_STACK_SIZEOF(i2c_stack), i2c_communication_test,
 		NULL, NULL, NULL, MY_PRIORITY, K_INHERIT_PERMS, K_FOREVER);
 
 	k_thread_start(i2c_thread_tid);
 }
+
+SHELL_STATIC_SUBCMD_SET_CREATE(sensor_driver_cmd,
+	SHELL_CMD(calibrate, NULL, "Calibrate the distance sensor.", cmd_calibrate_distance_sensor),
+	SHELL_SUBCMD_SET_END	
+);
+/* Creating root (level 0) command "demo" */
+SHELL_CMD_REGISTER(driver, &sensor_driver_cmd, "Sensor Driver commands.", NULL);

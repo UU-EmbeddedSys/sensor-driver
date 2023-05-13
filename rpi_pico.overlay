@@ -7,6 +7,10 @@
 
     };
 
+    // chosen {
+	// 	zephyr,shell-uart = &uart0;
+	// };
+
     leds {
         compatible = "gpio-leds";
         myled0: led_0 {
@@ -26,6 +30,7 @@
     pinctrl-names = "default";
     sensor_node: sensor_node@40 {
             compatible = "sensor_node";
+            gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>;
             reg = <0x40>;
     };
     // bme680: bme680@77 {
