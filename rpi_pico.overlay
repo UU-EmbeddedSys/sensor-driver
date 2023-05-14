@@ -9,7 +9,7 @@
     pinctrl-names = "default";
     sensor_node: sensor_node@40 {
             compatible = "sensor_node";
-            gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>; // use the 20 to debug with the button
+            gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>; // use the 20 to debug with the button
             reg = <0x40>;
     };
     // bme680: bme680@77 {

@@ -85,8 +85,10 @@ uint8_t write_configuration(const struct device *i2c_dev, uint8_t configuration_
 			    uint8_t register_address)
 {
 	// read_byte(i2c_dev, CLEAR_I2C);
-	// return i2c_reg_write_byte(i2c_dev, SENSOR_NODE_ADDR, register_address, configuration_value);
-	return sensor_node_write_reg(i2c_dev, &configuration_value, sizeof(configuration_value), register_address);
+	// return i2c_reg_write_byte(i2c_dev, SENSOR_NODE_ADDR, register_address,
+	// configuration_value);
+	return sensor_node_write_reg(i2c_dev, &configuration_value, sizeof(configuration_value),
+				     register_address);
 }
 
 static void print_sensor_data(const struct sensor_data *data)
@@ -100,15 +102,11 @@ static void print_sensor_data(const struct sensor_data *data)
 	LOG_INF("Pressure: %.2f", data->pressure);
 }
 
-
-static void setup_int(const struct device *dev,
-		      bool enable)
+static void setup_int(const struct device *dev, bool enable)
 {
 	LOG_INF("setup_int %d", enable);
 	const struct sensor_config *cfg = dev->config;
-	gpio_flags_t flags = enable
-		? GPIO_INT_EDGE_TO_ACTIVE
-		: GPIO_INT_DISABLE;
+	gpio_flags_t flags = enable ? GPIO_INT_EDGE_TO_ACTIVE : GPIO_INT_DISABLE;
 
 	gpio_pin_interrupt_configure_dt(&cfg->int_gpio, flags);
 }
@@ -117,52 +115,56 @@ static void process_int(const struct device *dev)
 {
 	LOG_INF("process_int");
 	const struct sensor_config *config = dev->config;
-	struct sensor_data *data = dev->data;
+	// struct sensor_data *data = dev->data;
 	uint8_t int_source;
 	LOG_INF("ISR Processing");
-	if (sensor_node_read_reg(config->i2c.bus, &int_source, sizeof(int_source),
-				 SENSOR_NODE_ISR_SRC)) {
+	if (sensor_node_read_reg(config->i2c.bus, &int_source, sizeof(int_source), INT_SOURCE)) {
 		LOG_ERR("Could not read interrupt source");
 		int_source = 0U;
 	}
-	// int_source = read_byte(config->i2c.bus, SENSOR_NODE_ISR_SRC);
+	// int_source = read_byte(config->i2c.bus, INT_SOURCE);
 	LOG_WRN("src int: %d", int_source);
 	switch (int_source) {
-	case ACCELERATOR:
-		/* code */
-		break;
 	case HUMIDITY:
-		/* code */
+		LOG_ERR("*** Humidity above threshold! ***");
+		// Perform actions for humidity sensor
 		break;
 	case TEMPERATURE:
-		/* code */
-		LOG_INF("SOURCE: TEMPERATURE");
+		LOG_ERR("*** Temperature above threshold! ***");
+		// Perform actions for temperature sensor
 		break;
 	case PRESSURE:
-		/* code */
+		LOG_ERR("*** Pressure above threshold! ***");
+		// Perform actions for pressure sensor
 		break;
 	case DISTANCE:
-		/* code */
+		LOG_ERR("*** Distance above threshold! ***");
+		// Perform actions for distance sensor
+		break;
+	case ACCELERATOR:
+		LOG_ERR("*** Accelerator above threshold! ***");
+		// Perform actions for accelerator sensor
 		break;
 	default:
+		LOG_ERR("Unknown sensor type.\n");
+		// Perform actions for unknown sensor type
 		break;
 	}
 
 	// Clear the interrupt register
 	uint8_t clear_int = 0;
-	sensor_node_write_reg(config->i2c.bus, &clear_int, sizeof(clear_int), SENSOR_NODE_ISR_SRC);
+	sensor_node_write_reg(config->i2c.bus, &clear_int, sizeof(clear_int), INT_SOURCE);
 
 	// Re-enable the interrupt
 	setup_int(dev, true);
-
 }
 
 /**
  * @brief Callback associated at the interrupt
- * 
- * @param port 
- * @param cb 
- * @param pins 
+ *
+ * @param port
+ * @param cb
+ * @param pins
  */
 void sensor_node_isr(const struct device *port, struct gpio_callback *cb, gpio_port_pins_t pins)
 {
@@ -176,7 +178,7 @@ void sensor_node_isr(const struct device *port, struct gpio_callback *cb, gpio_p
 
 static void sensor_node_thread(struct sensor_data *drv_data)
 {
-	LOG_INF("SN THR CREATED");
+	LOG_DBG("SN THR CREATED");
 	while (true) {
 		k_sem_take(&drv_data->gpio_sem, K_FOREVER);
 		process_int(drv_data->dev);
@@ -190,12 +192,12 @@ static void sensor_node_thread(struct sensor_data *drv_data)
  * A thread to handle the interrupt is created waiting for the semaphore being release.
  * The interrupt at first is disabled.
  * When from the main, a trigger is set, the interrupt is re-enabled (for now).
- * 
- * Once the interrupt is triggered, sensor_node_isr is called, which disable the int and 
+ *
+ * Once the interrupt is triggered, sensor_node_isr is called, which disable the int and
  * release the semaphore for the thread in order to process it.
  * Once processed, the interrupt is re-enabled on that pin.
- * @param dev 
- * @return int 
+ * @param dev
+ * @return int
  */
 static int sensor_node_trigger_init(const struct device *dev)
 {
@@ -225,11 +227,9 @@ static int sensor_node_trigger_init(const struct device *dev)
 	// Create semaphore and thread
 	k_sem_init(&data->gpio_sem, 0, 1);
 
-	k_thread_create(&data->thread, data->thread_stack,
-			2048,
-			(k_thread_entry_t)sensor_node_thread, data,
-			NULL, NULL, K_PRIO_COOP(10),
-			0, K_NO_WAIT);
+	k_thread_create(&data->thread, data->thread_stack, 2048,
+			(k_thread_entry_t)sensor_node_thread, data, NULL, NULL, K_PRIO_COOP(10), 0,
+			K_NO_WAIT);
 	// Disable interrupt
 	setup_int(dev, false);
 	return 0;
@@ -276,10 +276,106 @@ static int sensor_node_attr_set(const struct device *dev, enum sensor_channel ch
 			break;
 		}
 		break;
-	case SENSOR_ATTR_SAMPLING_FREQUENCY:
-		// ADXL
-		err = write_configuration(i2c_dev, (uint8_t)val->val1,
-					  ADXL345_SAMPL_FREQ); // FIXME implement on the sensor too
+	case SENSOR_ATTR_UPPER_THRESH:
+		switch (chan) {
+		case SENSOR_CHAN_AMBIENT_TEMP: {
+			// read critical temperature
+			double value = sensor_value_to_double(val);
+			err = sensor_node_write_reg(i2c_dev, (uint8_t *)&value, sizeof(value),
+						    TEMP_UP_TRIGGER);
+			break;
+		}
+		case SENSOR_CHAN_HUMIDITY: {
+			// set critical humidity %
+			double value = sensor_value_to_double(val);
+			err = sensor_node_write_reg(i2c_dev, (uint8_t *)&value, sizeof(value),
+						    HUM_UP_TRIGGER);
+			break;
+		}
+		case SENSOR_CHAN_PRESS: {
+			// set critical pressure
+			double value = sensor_value_to_double(val);
+			err = sensor_node_write_reg(i2c_dev, (uint8_t *)&value, sizeof(value),
+						    PRES_UP_TRIGGER);
+			break;
+		}
+		case SENSOR_CHAN_ACCEL_XYZ: {
+			// set critical acceleration
+			float value = (float)sensor_value_to_double(val);
+			err = sensor_node_write_reg(i2c_dev, (uint8_t *)&value, sizeof(value),
+						    ACCEL_UP_TRIGGER);
+			break;
+		}
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+	return err;
+}
+
+static int sensor_node_attr_get(const struct device *dev, enum sensor_channel chan,
+				enum sensor_attribute attr, struct sensor_value *val)
+{
+	int err = 0;
+	struct sensor_data *data = dev->data;
+	const struct sensor_config *config = dev->config;
+	const struct device *i2c_dev = config->i2c.bus;
+	LOG_WRN("ATTR GET");
+	switch (attr) {
+	case SENSOR_ATTR_OVERSAMPLING:
+		// BME
+		switch (chan) {
+		case SENSOR_CHAN_AMBIENT_TEMP:
+			err = write_configuration(i2c_dev, (uint8_t)val->val1, BME680_CONFIG_TEMP);
+			break;
+		case SENSOR_CHAN_HUMIDITY:
+			err = write_configuration(i2c_dev, (uint8_t)val->val1,
+						  BME680_CONFIG_HUMIDITY);
+			break;
+		case SENSOR_CHAN_PRESS:
+			err = write_configuration(i2c_dev, (uint8_t)val->val1,
+						  BME680_CONFIG_PRESSURE);
+			break;
+		default:
+			break;
+		}
+		break;
+	case SENSOR_ATTR_UPPER_THRESH:
+		switch (chan) {
+		case SENSOR_CHAN_AMBIENT_TEMP: {
+			// get critical temperature
+			data->temp_thresh = read_double(i2c_dev, TEMP_UP_TRIGGER);
+			LOG_INF("%f", data->temp_thresh);
+			sensor_value_from_double(val, data->temp_thresh);
+			break;
+		}
+		case SENSOR_CHAN_HUMIDITY: {
+			// get critical humidity %
+			data->hum_thresh = read_double(i2c_dev, HUM_UP_TRIGGER);
+			LOG_INF("%f", data->hum_thresh);
+			sensor_value_from_double(val, data->hum_thresh);
+			break;
+		}
+		case SENSOR_CHAN_PRESS: {
+			// get critical pressure
+			data->press_thresh = read_double(i2c_dev, PRES_UP_TRIGGER);
+			LOG_INF("%f", data->temp_thresh);
+			sensor_value_from_double(val, data->press_thresh);
+			break;
+		}
+		case SENSOR_CHAN_ACCEL_XYZ: {
+			// get critical acceleration
+			data->accel_thresh = read_float(i2c_dev, ACCEL_UP_TRIGGER);
+			LOG_INF("%f", data->accel_thresh);
+			sensor_value_from_double(val, data->accel_thresh);
+			break;
+		}
+		default:
+			break;
+		}
 		break;
 	default:
 		break;
@@ -338,7 +434,6 @@ static int sensor_node_trigger_set(const struct device *dev, const struct sensor
 				   sensor_trigger_handler_t handler)
 {
 	setup_int(dev, true);
-	// TODO
 	return 0;
 }
 
@@ -346,7 +441,7 @@ static const struct sensor_driver_api sensor_node_api_funcs = {
 	.sample_fetch = sensor_node_sample_fetch,
 	.channel_get = sensore_node_channel_get,
 	.attr_set = sensor_node_attr_set,
-	.attr_get = NULL,
+	.attr_get = sensor_node_attr_get,
 	.trigger_set = sensor_node_trigger_set,
 };
 
